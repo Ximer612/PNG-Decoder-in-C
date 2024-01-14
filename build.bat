@@ -1,0 +1,1 @@
+clang.exe -o pngdecode.exe pngdecode.c -l zlibwapi.lib -I .\include
