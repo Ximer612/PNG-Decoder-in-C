@@ -32,20 +32,23 @@ void print_binary(const unsigned char* to_print, int byte_to_print)
     printf("\n");
 }
 
-void read_chuck(FILE* f/*, unsigned char* chunk_type,unsigned char* chunk_data*/)
+png_chunk read_chuck(FILE* f/*, unsigned char* chunk_type,unsigned char* chunk_data*/)
 {
-    unsigned int chunk_length;
-    fread_s(&chunk_length, 4, 4, 1, f);
-    chunk_length = to_le(chunk_length);
-    CYAN_PRINT("chunk_length => %d", chunk_length);
+    png_chunk current_chunk;
 
-    unsigned char chunk_type[4];
-    fread_s(chunk_type, sizeof(chunk_type), sizeof(chunk_type), 1, f);
-    CYAN_PRINT("chunk_type => %.4s", chunk_type);
+    //read 1 element of 4 bytes from f file
+    fread_s(&current_chunk.length, sizeof(current_chunk.length), sizeof(current_chunk.length), 1, f);
+    current_chunk.length = to_le(current_chunk.length);
+    CYAN_PRINT("chunk_length => %d", current_chunk.length);
 
-    unsigned char* chunk_data = (unsigned char*)malloc(chunk_length);
+    fread_s(current_chunk.type, sizeof(current_chunk.type), sizeof(current_chunk.type), 1, f);
+    CYAN_PRINT("chunk_type => %.4s", current_chunk.type);
 
-    fread_s(chunk_data, chunk_length * 4, sizeof(char), chunk_length, f);
+    current_chunk.data = (unsigned char*)malloc(current_chunk.length);
+
+    fread_s(current_chunk.data, current_chunk.length * 4, sizeof(char), current_chunk.length, f);
+
+    CYAN_PRINT("chunk_data => %s", current_chunk.data);
 
     unsigned char chunk_crc[4];
     fread_s(chunk_crc, sizeof(chunk_crc), sizeof(chunk_crc), 1, f);
@@ -62,13 +65,13 @@ void read_chuck(FILE* f/*, unsigned char* chunk_type,unsigned char* chunk_data*/
     //         checksum))
     // return chunk_type, chunk_data
 
-    return;
+    return current_chunk;
 }
 
-int main(int argc, char const* argv[])
+int read_png(char* file_path)
 {
     FILE* f;
-    fopen_s(&f, "basn6a08.png", "rb");
+    fopen_s(&f, file_path, "rb");
 
     //CHECK PNG SIGNATURE
     const unsigned char png_signature[PNG_SIGNATURE_LENGTH] = "\x89PNG\r\n\x1a\n";
@@ -80,15 +83,24 @@ int main(int argc, char const* argv[])
 
     if (result != 0)
     {
-        RED_PRINT("Invalid PNG Signature");
+        RED_PRINT("Invalid PNG Signature!");
         return -1;
     }
+
+    GREEN_PRINT("Valid PNG Signature!");
 
     unsigned char* chunk_type = 0;
     unsigned char* chunk_data = 0;
     read_chuck(f/*,&chunk_type, &chunk_data*/);
 
     fclose(f);
+
+    return 0;
+}
+
+int main(int argc, char const* argv[])
+{
+    read_png("assets/basn6a08.png");
 
     return 0;
 }
