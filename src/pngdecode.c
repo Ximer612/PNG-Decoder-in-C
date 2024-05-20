@@ -100,7 +100,7 @@ int read_png(char* file_path)
 
 int main(int argc, char const* argv[])
 {
-    read_png("assets/basn6a08.png");
+    read_png("resources/basn6a08.png");
 
     return 0;
 }

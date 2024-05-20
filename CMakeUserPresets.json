@@ -1,0 +1,9 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "E:\\Documenti\\GitHub\\PNG-Decoder-in-C\\build\\conan\\build\\generators\\CMakePresets.json"
+    ]
+}
