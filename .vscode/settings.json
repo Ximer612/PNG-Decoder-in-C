@@ -1,0 +1,14 @@
+{
+    "cmake.configureSettings": {
+        "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "./conan_provider.cmake"
+    },
+    "cmake.loggingLevel": "debug",
+    "files.associations": {
+        "xlocale": "c",
+        "xstring": "c",
+        "array": "c",
+        "vector": "c",
+        "xutility": "c",
+        "xiosbase": "c"
+    }
+}
