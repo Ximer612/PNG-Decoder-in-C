@@ -140,17 +140,7 @@ int Ximer_read_png(Ximer_png_chunk** chunks, char* file_path)
         chunks[counter] = return_chunk;
         YELLOW_PRINT("first type = %.4s   second type = %.4s", return_chunk->type, end_file_type);
 
-        int is_equal = 1;
-
-        for (int i = 0; i < 4; i++)
-        {
-            if(return_chunk->type[i] != end_file_type[i])
-            {
-                is_equal = 0;
-            }
-        }
-        
-        if(is_equal)
+        if(memcmp(return_chunk->type,end_file_type,4) == 0)
         {
             RED_PRINT("first type = %.4s   second type = %.4s", return_chunk->type, end_file_type);
             fclose(f);
@@ -177,9 +167,11 @@ Ximer_IHDR_chunk* read_IHDR_chunk(Ximer_png_chunk** chunks)
     return IHDR_chunk;
 }
 
+#define chunks_array_length 10
+
 int main(int argc, char const* argv[])
 {
-    Ximer_png_chunk* chunks[10];
+    Ximer_png_chunk* chunks[chunks_array_length];
     Ximer_read_png(chunks,"resources/basn6a08.png");
 
     GREEN_PRINT("test %.4s", chunks[0]->type);
@@ -192,12 +184,34 @@ int main(int argc, char const* argv[])
 
     Ximer_IHDR_chunk* IHDR_chunk = read_IHDR_chunk(chunks);
 
+    Ximer_png_chunk* IDAT_chunk;
+
+    unsigned char idat_file_type[4];
+    idat_file_type[0] = 'I';
+    idat_file_type[1] = 'D';
+    idat_file_type[2] = 'A';
+    idat_file_type[3] = 'T';
+
+    for (int i = 0; i < chunks_array_length; i++)
+    {
+        Ximer_png_chunk* chunk = chunks[i];
+
+        if(memcmp(chunk->type,idat_file_type,4) == 0)
+        {
+            IDAT_chunk = chunk;
+            MAGENTA_PRINT("FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
+            break;
+        }
+        MAGENTA_PRINT("NOT FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
+    }
+
+    //IDAT_chunk->data;
+
     SDL_Rect rect;
     rect.x = window_width/2;
     rect.y = window_height/2;
     rect.w = IHDR_chunk->width;
     rect.h = IHDR_chunk->height;
-    
 
     RED_PRINT("ciao! %d",rect.w);
 
