@@ -8,15 +8,26 @@
 
 #define PNG_SIGNATURE_LENGTH 8
 
-typedef struct png_chunk
+typedef struct Ximer_png_chunk
 {
     unsigned int length;    // chunk data length
     unsigned char type[4];  // chunk type
     unsigned char* data;    // chunk data
     unsigned char crc[4];   // CRC of chunk data
-} png_chunk;
+} Ximer_png_chunk;
 
-unsigned int to_le(const unsigned int value)
+typedef struct Ximer_IHDR_chunk
+{
+    unsigned int width;
+    unsigned int height;
+    unsigned char bit_depth;
+    unsigned char color_type;
+    unsigned char compression_method;
+    unsigned char filter_method;
+    unsigned char interlace_method;
+} Ximer_IHDR_chunk;
+
+unsigned int Ximer_to_le(const unsigned int value)
 {
     unsigned int byte0 = value << 24;
     unsigned int byte1 = (value & 0xFF00) << 8;
@@ -26,7 +37,7 @@ unsigned int to_le(const unsigned int value)
     return byte0 | byte1 | byte2 | byte3;
 }
 
-void print_binary(const unsigned char* to_print, int byte_to_print)
+void Ximer_print_binary(const unsigned char* to_print, int byte_to_print)
 {
     for (int i = 0; i < byte_to_print; i++) {
         printf("%02x ", to_print[i]);
@@ -34,13 +45,13 @@ void print_binary(const unsigned char* to_print, int byte_to_print)
     printf("\n");
 }
 
-png_chunk* read_chuck(FILE* f)
+Ximer_png_chunk* Ximer_read_chuck(FILE* f)
 {
-    png_chunk* current_chunk = (png_chunk*)malloc(sizeof(png_chunk));
+    Ximer_png_chunk* current_chunk = (Ximer_png_chunk*)malloc(sizeof(Ximer_png_chunk));
 
     //read 1 element of 4 bytes from f file
     fread_s(&current_chunk->length, sizeof(current_chunk->length), sizeof(current_chunk->length), 1, f);
-    current_chunk->length = to_le(current_chunk->length);
+    current_chunk->length = Ximer_to_le(current_chunk->length);
     CYAN_PRINT("chunk_length => %d", current_chunk->length);
 
     fread_s(current_chunk->type, sizeof(current_chunk->type), sizeof(current_chunk->type), 1, f);
@@ -92,7 +103,7 @@ png_chunk* read_chuck(FILE* f)
     return current_chunk;
 }
 
-int read_png(png_chunk** chunks, char* file_path)
+int Ximer_read_png(Ximer_png_chunk** chunks, char* file_path)
 {
     FILE* f;
     fopen_s(&f, file_path, "rb");
@@ -125,7 +136,7 @@ int read_png(png_chunk** chunks, char* file_path)
     int counter = 0;
     for(;;)
     {
-        png_chunk* return_chunk = read_chuck(f);
+        Ximer_png_chunk* return_chunk = Ximer_read_chuck(f);
         chunks[counter] = return_chunk;
         YELLOW_PRINT("first type = %.4s   second type = %.4s", return_chunk->type, end_file_type);
 
@@ -151,13 +162,27 @@ int read_png(png_chunk** chunks, char* file_path)
     return -1;
 }
 
+Ximer_IHDR_chunk* read_IHDR_chunk(Ximer_png_chunk** chunks)
+{
+    Ximer_IHDR_chunk* IHDR_chunk = (Ximer_IHDR_chunk*)malloc(sizeof(Ximer_IHDR_chunk));
+
+    IHDR_chunk->width = Ximer_to_le(((int*)chunks[0]->data)[0]);
+    IHDR_chunk->height = Ximer_to_le(((int*)chunks[0]->data)[1]);
+    IHDR_chunk->bit_depth = ((char*)chunks[0]->data)[sizeof(int)*2 + 1];
+    IHDR_chunk->color_type = ((char*)chunks[0]->data)[sizeof(int)*2 + 2];
+    IHDR_chunk->compression_method = ((char*)chunks[0]->data)[sizeof(int)*2 + 3];
+    IHDR_chunk->filter_method = ((char*)chunks[0]->data)[sizeof(int)*2 + 4];
+    IHDR_chunk->interlace_method = ((char*)chunks[0]->data)[sizeof(int)*2 + 5];
+
+    return IHDR_chunk;
+}
+
 int main(int argc, char const* argv[])
 {
-    png_chunk* chunks[10];
-    read_png(chunks,"resources/basn6a08.png");
+    Ximer_png_chunk* chunks[10];
+    Ximer_read_png(chunks,"resources/basn6a08.png");
 
     GREEN_PRINT("test %.4s", chunks[0]->type);
-
 
     //SDL INIT WINDOW
     SDL_Init(SDL_INIT_VIDEO);
@@ -165,11 +190,14 @@ int main(int argc, char const* argv[])
     const int window_width = 640;
     const int window_height = 480;
 
+    Ximer_IHDR_chunk* IHDR_chunk = read_IHDR_chunk(chunks);
+
     SDL_Rect rect;
     rect.x = window_width/2;
     rect.y = window_height/2;
-    rect.w = to_le(((int*)chunks[0]->data)[0]);
-    rect.h = to_le(((int*)chunks[0]->data)[1]);
+    rect.w = IHDR_chunk->width;
+    rect.h = IHDR_chunk->height;
+    
 
     RED_PRINT("ciao! %d",rect.w);
 
@@ -215,9 +243,6 @@ int main(int argc, char const* argv[])
 
     return 0;
 }
-
-
-
 
 /*
 

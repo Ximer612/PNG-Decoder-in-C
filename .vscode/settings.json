@@ -2,7 +2,7 @@
     "cmake.configureSettings": {
         "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "./conan_provider.cmake"
     },
-    "cmake.loggingLevel": "debug",
+    //"cmake.loggingLevel": "debug",
     "files.associations": {
         "xlocale": "c",
         "xstring": "c",
