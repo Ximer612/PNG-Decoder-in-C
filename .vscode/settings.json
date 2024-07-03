@@ -9,6 +9,8 @@
         "array": "c",
         "vector": "c",
         "xutility": "c",
-        "xiosbase": "c"
+        "xiosbase": "c",
+        "console_utilities.h": "c",
+        "format": "c"
     }
 }

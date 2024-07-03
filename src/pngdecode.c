@@ -8,13 +8,17 @@
 
 #define PNG_SIGNATURE_LENGTH 8
 
-typedef struct Ximer_png_chunk
+typedef struct ximer_png_chunk
 {
     unsigned int length;    // chunk data length
     unsigned char type[4];  // chunk type
     unsigned char* data;    // chunk data
-    unsigned char crc[4];   // CRC of chunk data
-} Ximer_png_chunk;
+    union crc
+    {
+        unsigned char str_crc[4];
+        unsigned int crc;
+    };
+} ximer_png_chunk;
 
 typedef struct Ximer_IHDR_chunk
 {
@@ -27,7 +31,7 @@ typedef struct Ximer_IHDR_chunk
     unsigned char interlace_method;
 } Ximer_IHDR_chunk;
 
-unsigned int Ximer_to_le(const unsigned int value)
+unsigned int ximer_int_be_to_le(const unsigned int value)
 {
     unsigned int byte0 = value << 24;
     unsigned int byte1 = (value & 0xFF00) << 8;
@@ -37,7 +41,7 @@ unsigned int Ximer_to_le(const unsigned int value)
     return byte0 | byte1 | byte2 | byte3;
 }
 
-void Ximer_print_binary(const unsigned char* to_print, int byte_to_print)
+void ximer_print_binary(const unsigned char* to_print, int byte_to_print)
 {
     for (int i = 0; i < byte_to_print; i++) {
         printf("%02x ", to_print[i]);
@@ -45,65 +49,46 @@ void Ximer_print_binary(const unsigned char* to_print, int byte_to_print)
     printf("\n");
 }
 
-Ximer_png_chunk* Ximer_read_chuck(FILE* f)
+ximer_png_chunk* ximer_read_chuck(FILE* f)
 {
-    Ximer_png_chunk* current_chunk = (Ximer_png_chunk*)malloc(sizeof(Ximer_png_chunk));
+    ximer_png_chunk* current_chunk = (ximer_png_chunk*)malloc(sizeof(ximer_png_chunk));
 
-    //read 1 element of 4 bytes from f file
+    //GET CHUNK LENGTH FROM BE TO LE
     fread_s(&current_chunk->length, sizeof(current_chunk->length), sizeof(current_chunk->length), 1, f);
-    current_chunk->length = Ximer_to_le(current_chunk->length);
+    current_chunk->length = ximer_int_be_to_le(current_chunk->length);
     CYAN_PRINT("chunk_length => %d", current_chunk->length);
 
+    //GET CHUNK TYPE
     fread_s(current_chunk->type, sizeof(current_chunk->type), sizeof(current_chunk->type), 1, f);
     CYAN_PRINT("chunk_type => %.4s", current_chunk->type);
 
+    //GET CHUNK DATA
     current_chunk->data = (unsigned char*)malloc(current_chunk->length);
-
     fread_s(current_chunk->data, current_chunk->length * 4, sizeof(char), current_chunk->length, f);
+    CYAN_PRINT("chunk_data => %p", current_chunk->data);
 
-    CYAN_PRINT("chunk_data => %s", current_chunk->data);
+    //GET CHUNK CRC
+    fread_s(current_chunk->str_crc, sizeof(current_chunk->str_crc), sizeof(current_chunk->str_crc), 1, f);
+    CYAN_PRINT("chunk_crc => %.4s", current_chunk->str_crc);
+    current_chunk->crc = ximer_int_be_to_le(current_chunk->crc);
 
-    fread_s(current_chunk->crc, sizeof(current_chunk->crc), sizeof(current_chunk->crc), 1, f);
-    CYAN_PRINT("chunk_crc => %.4s", current_chunk->crc);
+    //CHECK IF THE CHUNK CRC IS CORRECT
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, current_chunk->type, 4);
+    crc = crc32(crc, (const Bytef *)current_chunk->data, current_chunk->length);
 
-    // unsigned char crcLE[4]; 
-    // crcLE[0] = current_chunk.crc[3];
-    // crcLE[1] = current_chunk.crc[2];
-    // crcLE[2] = current_chunk.crc[1];
-    // crcLE[3] = current_chunk.crc[0];
+    if(crc != current_chunk->crc)
+    {
+        RED_PRINT("ERROR IN CRC32 CHECK!");
+        return NULL;
+    }
 
-    // //unsigned char checksum[4];
-    // //uLong crc = crc32(NULL, current_chunk.data,current_chunk.length);
-    // //uLong checksumLong = crc32(4,current_chunk.data,current_chunk.length);
-    // //checksum = int32bit.crc;
-
-    // unsigned int checksumTwo  = crc32(0, current_chunk.data,current_chunk.length);
-
-    // //if (crc != original_crc) error();
-
-    // // printf("%llu \n",crc);
-    // // printf("%llu",(unsigned long)current_chunk.crc);
-    // //1386108025
-    // if(current_chunk.crc != checksumTwo)
-    // {
-    //    //RED_PRINT("chunk checksum failed current_chunk.crc -> %d === crc32 -> %d",checksumOne, checksumTwo);
-    // }
-
-    // uLong crc = crc32(0L, Z_NULL, 0);
-    // uLong checksum = crc32(crc,chunk_data,4);
-
-    // CYAN_PRINT("%s",checksum);
-
-    // checksum = zlib.crc32(chunk_data, zlib.crc32(struct.pack('>4s', chunk_type)))
-    // if chunk_crc != checksum:
-    //     raise Exception('chunk checksum failed {} != {}'.format(chunk_crc,
-    //         checksum))
-    // return chunk_type, chunk_data
+    GREEN_PRINT("VALID CRC32 CHECK!");
 
     return current_chunk;
 }
 
-int Ximer_read_png(Ximer_png_chunk** chunks, char* file_path)
+int ximer_read_png(ximer_png_chunk** chunks, char* file_path)
 {
     FILE* f;
     fopen_s(&f, file_path, "rb");
@@ -136,7 +121,7 @@ int Ximer_read_png(Ximer_png_chunk** chunks, char* file_path)
     int counter = 0;
     for(;;)
     {
-        Ximer_png_chunk* return_chunk = Ximer_read_chuck(f);
+        ximer_png_chunk* return_chunk = ximer_read_chuck(f);
         chunks[counter] = return_chunk;
         YELLOW_PRINT("first type = %.4s   second type = %.4s", return_chunk->type, end_file_type);
 
@@ -152,12 +137,12 @@ int Ximer_read_png(Ximer_png_chunk** chunks, char* file_path)
     return -1;
 }
 
-Ximer_IHDR_chunk* read_IHDR_chunk(Ximer_png_chunk** chunks)
+Ximer_IHDR_chunk* ximer_read_IHDR_chunk(ximer_png_chunk** chunks)
 {
     Ximer_IHDR_chunk* IHDR_chunk = (Ximer_IHDR_chunk*)malloc(sizeof(Ximer_IHDR_chunk));
 
-    IHDR_chunk->width = Ximer_to_le(((int*)chunks[0]->data)[0]);
-    IHDR_chunk->height = Ximer_to_le(((int*)chunks[0]->data)[1]);
+    IHDR_chunk->width = ximer_int_be_to_le(((int*)chunks[0]->data)[0]);
+    IHDR_chunk->height = ximer_int_be_to_le(((int*)chunks[0]->data)[1]);
     IHDR_chunk->bit_depth = ((char*)chunks[0]->data)[sizeof(int)*2 + 1];
     IHDR_chunk->color_type = ((char*)chunks[0]->data)[sizeof(int)*2 + 2];
     IHDR_chunk->compression_method = ((char*)chunks[0]->data)[sizeof(int)*2 + 3];
@@ -171,10 +156,8 @@ Ximer_IHDR_chunk* read_IHDR_chunk(Ximer_png_chunk** chunks)
 
 int main(int argc, char const* argv[])
 {
-    Ximer_png_chunk* chunks[chunks_array_length];
-    Ximer_read_png(chunks,"resources/basn6a08.png");
-
-    GREEN_PRINT("test %.4s", chunks[0]->type);
+    ximer_png_chunk* chunks[chunks_array_length];
+    ximer_read_png(chunks,"resources/basn6a08.png");
 
     //SDL INIT WINDOW
     SDL_Init(SDL_INIT_VIDEO);
@@ -182,9 +165,9 @@ int main(int argc, char const* argv[])
     const int window_width = 640;
     const int window_height = 480;
 
-    Ximer_IHDR_chunk* IHDR_chunk = read_IHDR_chunk(chunks);
+    Ximer_IHDR_chunk* IHDR_chunk = ximer_read_IHDR_chunk(chunks);
 
-    Ximer_png_chunk* IDAT_chunk;
+    ximer_png_chunk* IDAT_chunk;
 
     unsigned char idat_file_type[4];
     idat_file_type[0] = 'I';
@@ -194,15 +177,15 @@ int main(int argc, char const* argv[])
 
     for (int i = 0; i < chunks_array_length; i++)
     {
-        Ximer_png_chunk* chunk = chunks[i];
+        ximer_png_chunk* chunk = chunks[i];
 
         if(memcmp(chunk->type,idat_file_type,4) == 0)
         {
             IDAT_chunk = chunk;
-            MAGENTA_PRINT("FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
+            PURPLE_PRINT("FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
             break;
         }
-        MAGENTA_PRINT("NOT FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
+        PURPLE_PRINT("NOT FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
     }
 
     //IDAT_chunk->data;
@@ -213,10 +196,10 @@ int main(int argc, char const* argv[])
     rect.w = IHDR_chunk->width;
     rect.h = IHDR_chunk->height;
 
-    RED_PRINT("ciao! %d",rect.w);
+    RED_PRINT("Rect width = %d, height = %d",rect.w, rect.h);
 
     SDL_Window* window = SDL_CreateWindow(
-        "First SDL2 Window",
+        "Ximer PNG Image Reader",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         window_width,
@@ -257,21 +240,3 @@ int main(int argc, char const* argv[])
 
     return 0;
 }
-
-/*
-
-//Debug create file
-FILE* file_to_write;
-fopen_s(&file_to_write,"debug_file.txt", "w");
-
-if(file_to_write == NULL)
-{
-printf("Unable to create file.\n");
-exit(-1);
-}
-
-fwrite(chunk_data,sizeof(char),chunk_length*4,file_to_write);
-
-fclose(file_to_write);
-
-*/
