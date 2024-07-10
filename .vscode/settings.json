@@ -11,6 +11,23 @@
         "xutility": "c",
         "xiosbase": "c",
         "console_utilities.h": "c",
-        "format": "c"
+        "format": "c",
+        "stdlib.h": "c",
+        "string.h": "c",
+        "sdl.h": "c",
+        "zlib.h": "c",
+        "cstdlib": "c",
+        "algorithm": "c",
+        "iterator": "c",
+        "xhash": "c",
+        "xmemory": "c",
+        "xtree": "c",
+        "cstddef": "c",
+        "sstream": "c",
+        "initializer_list": "c",
+        "list": "c",
+        "random": "c",
+        "utility": "c",
+        "system_error": "c"
     }
 }
