@@ -230,7 +230,7 @@ void print_hex(const char *s)
     SET_DEFAULT_PRINT();
 }
 
-void ximer_get_IDAT_chunks_data(char* buffer,ximer_IDAT_chunks* IDAT_chunks)
+void ximer_get_IDAT_chunks_data(unsigned char* buffer,ximer_IDAT_chunks* IDAT_chunks)
 {
     WHITE_PRINT("%s",buffer);
     for (size_t i = 0; i < IDAT_chunks->count; i++)
@@ -243,13 +243,18 @@ void ximer_get_IDAT_chunks_data(char* buffer,ximer_IDAT_chunks* IDAT_chunks)
     }
 }
 
-int ximer_paeth_predictor(const int a, const int b, const int c)
+/// @brief x is the byte being filtered
+/// @param a  is the byte corresponding to x in the pixel immediately before the pixel containing x (or 0 if such a pixel is out of bounds of the image)
+/// @param b is the byte corresponding to x in the previous scanline (or 0 if such a scanline is out of bounds of the image)
+/// @param c is the byte corresponding to b in the pixel immediately before the pixel containing b (or 0 if such a pixel is out of bounds of the image)
+/// @return 
+unsigned char ximer_paeth_predictor(unsigned char a, unsigned char b, unsigned char c)
 {
-    int Pr;
-    int p = a + b - c;
-    int pa = abs(p - a);
-    int pb = abs(p - b);
-    int pc = abs(p - c);
+    unsigned char Pr;
+    unsigned char p = a + b - c;
+    unsigned char pa = abs(p - a);
+    unsigned char pb = abs(p - b);
+    unsigned char pc = abs(p - c);
     if(pa <= pb && pa <= pc)
     {
         Pr = a;
@@ -265,52 +270,67 @@ int ximer_paeth_predictor(const int a, const int b, const int c)
     return Pr;
 }
 
-int ximer_recon_a(int* pixels_data,const int stride, const int bytesPerPixel, int r, int c)
+unsigned char ximer_recon_a(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
     return pixels_data[r * stride + c - bytesPerPixel] ? c >= bytesPerPixel : 0;
 }
 
-int ximer_recon_b(int* pixels_data,const int stride, const int bytesPerPixel, int r, int c)
+unsigned char ximer_recon_b(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
     return pixels_data[(r-1) * stride + c] ? r > 0 : 0;
 }
 
-int ximer_recon_c(int* pixels_data,const int stride, const int bytesPerPixel, int r, int c)
+unsigned char ximer_recon_c(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
     return pixels_data[(r-1) * stride + c - bytesPerPixel] ? r > 0 && c >= bytesPerPixel : 0;
 }
 
-int* ximer_reconstruct_pixels_data(const ximer_IHDR_chunk* IHDR_chunk, const int bytesPerPixel, const ximer_png_chunk** IDAT_chunks)
+unsigned char* ximer_reconstruct_pixels_data(const int bytesPerPixel, const ximer_IHDR_chunk* IHDR_chunk, unsigned char* IDAT_data)
 {
-    int* pixels_data = (int*)malloc(IHDR_chunk->height * IHDR_chunk->width * bytesPerPixel);
     const int stride = IHDR_chunk->width * bytesPerPixel;
+    unsigned char* pixels_data = (unsigned char*)malloc(IHDR_chunk->height * stride);
 
     int i = 0;
 
     for (size_t r = 0; r < IHDR_chunk->height; r++) //for each scanline
     {
-        char filter_type = IDAT_chunks[i]; // first byte of scanline is filter type
+        unsigned char filter_type = IDAT_data[i]; // first byte of scanline is filter type
         i++;
 
-        // for (size_t c = 0; c < stride; c++) //for each byte in scanline
-        // {
-        //     Filt_x = IDAT_chunks[i];
-        //     i++;
-        //     if(filter_type == 0)// None
-        //         Recon_x = Filt_x
-        //     elif filter_type == 1: // Sub
-        //         Recon_x = Filt_x + Recon_a(r, c)
-        //     elif filter_type == 2: // Up
-        //         Recon_x = Filt_x + Recon_b(r, c)
-        //     elif filter_type == 3: // Average
-        //         Recon_x = Filt_x + (Recon_a(r, c) + Recon_b(r, c)) // 2
-        //     elif filter_type == 4: // Paeth
-        //         Recon_x = Filt_x + PaethPredictor(Recon_a(r, c), Recon_b(r, c), Recon_c(r, c))
-        //     else
-        //         RED_PRINT("unknown filter type: %s", filter_type);
-        //     Recon.append(Recon_x & 0xff) // truncation to byte
-        // }
+        for (size_t c = 0; c < stride; c++) //for each byte in scanline
+        {
+            unsigned char filt_x = IDAT_data[i];
+            i++;
+            unsigned char recon_x;
 
+            switch (filter_type)
+            {
+            case 0:// None
+                recon_x = filt_x;
+                //RED_PRINT("None filter type: %02x - %02x", filter_type, recon_x);
+                break;
+            case 1:// Sub
+                recon_x = filt_x + ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c);
+                //RED_PRINT("Sub filter type: %02x - %02x", filter_type, recon_x);
+                break;
+            case 2:// Up
+                recon_x = filt_x + ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c);
+                //RED_PRINT("Up filter type: %02x - %02x", filter_type, recon_x);
+                break;
+            case 3:// Average
+                recon_x = filt_x + (ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c) + ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c)); // 2
+                //RED_PRINT("Average filter type: %02x - %02x", filter_type, recon_x);
+                break;
+            case 4:// Paeth
+                recon_x = filt_x + ximer_paeth_predictor(ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c), ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c), ximer_recon_c(IDAT_data,stride,bytesPerPixel,r,c));
+                //RED_PRINT("Paeth filter type: %02x - %02x", filter_type, recon_x);
+                break;
+            default:
+                //RED_PRINT("unknown filter type: %02x", filter_type);
+                continue;
+            }
+            pixels_data[r+c] = recon_x;// truncation to byte
+        }
     }
 
     return pixels_data;
@@ -332,7 +352,7 @@ int main(int argc, char const* argv[])
 
     // DECOMPRESSION OF IDAT CHUNKS //////////////////////////////
 
-    char* IDAT_chunks_data = (char*)malloc(IDAT_chunks->data_size);
+    unsigned char* IDAT_chunks_data = (unsigned char*)malloc(IDAT_chunks->data_size);
     ximer_get_IDAT_chunks_data(IDAT_chunks_data,IDAT_chunks);
 
     int bytesPerPixel = 4;
@@ -342,25 +362,19 @@ int main(int argc, char const* argv[])
     size_t dest_length = expected_len;
     size_t source_length = IDAT_chunks->data_size;
 
-    char* IDAT_chunks_data_uncompressed = (char*)malloc(dest_length);
+    unsigned char* IDAT_chunks_data_uncompressed = (unsigned char*)malloc(dest_length);
 
     int result = uncompress2((Bytef *)IDAT_chunks_data_uncompressed,(uLongf *)&dest_length,(Bytef *)IDAT_chunks_data,(uLong *)&source_length);
 
     // END /////////////////////
+
+    unsigned char* pixels_data = ximer_reconstruct_pixels_data(bytesPerPixel,IHDR_chunk,IDAT_chunks_data_uncompressed);
 
     //SDL INIT WINDOW
     SDL_Init(SDL_INIT_VIDEO);
     
     const int window_width = 640;
     const int window_height = 480;
-
-    SDL_Rect rect;
-    rect.x = window_width/2;
-    rect.y = window_height/2;
-    rect.w = IHDR_chunk->width;
-    rect.h = IHDR_chunk->height;
-
-    RED_PRINT("Rect width = %d, height = %d",rect.w, rect.h);
 
     SDL_Window* window = SDL_CreateWindow(
         "Ximer PNG Image Reader",
@@ -382,7 +396,25 @@ int main(int argc, char const* argv[])
         return 2;
     }
 
+    SDL_Texture* texture = SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA32,SDL_TEXTUREACCESS_STATIC,IHDR_chunk->width,IHDR_chunk->height);
+
+    if(!texture)
+    {
+        RED_PRINT("Error creating texture!");
+        return -1;
+    }
+
+    if(SDL_UpdateTexture(texture,NULL,pixels_data,IHDR_chunk->width * bytesPerPixel))
+    {
+        RED_PRINT("Error creating texture!");
+        return -1;
+    }
+
+    const int new_pos_x = window_width /2 - IHDR_chunk->width*8 /2;
+    const int new_pos_y = window_height /2 - IHDR_chunk->height*8 /2;
+    
     while (1) {
+        SDL_SetRenderDrawColor(renderer, 15, 15, 15, 15);
         SDL_RenderClear(renderer);
 
         SDL_Event event;
@@ -390,14 +422,14 @@ int main(int argc, char const* argv[])
             if (event.type == SDL_QUIT) break;
         }
 
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderDrawRect(renderer, &rect);
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        SDL_Rect drect = {new_pos_x,new_pos_y,IHDR_chunk->width*8,IHDR_chunk->height*8};
+        
+        SDL_RenderCopy(renderer,texture,NULL,&drect);
 
         SDL_RenderPresent(renderer);
     }
 
+    SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);  
     SDL_Quit();
