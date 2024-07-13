@@ -195,7 +195,7 @@ ximer_IDAT_chunks* ximer_get_IDAT_chunks(ximer_png_chunk** png_chunks, int chunk
             GREEN_PRINT("END FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
             break;
         }
-        PURPLE_PRINT("NOT FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
+        //PURPLE_PRINT("NOT FOUNDED!!! %.4s != %.4s", chunk->type,idat_file_type);
     }
 
     //GET ALL IDAT CHUNKS
@@ -220,26 +220,12 @@ ximer_IDAT_chunks* ximer_get_IDAT_chunks(ximer_png_chunk** png_chunks, int chunk
     return IDAT_chunks;
 }
 
-void print_hex(const char *s)
-{
-    SET_CYAN_PRINT();
-    int i = 0;
-    while(*s)
-        printf("[%d] %02x ",i++, (unsigned int) *s++);
-    printf("\n");
-    SET_DEFAULT_PRINT();
-}
-
 void ximer_get_IDAT_chunks_data(unsigned char* buffer,ximer_IDAT_chunks* IDAT_chunks)
 {
-    WHITE_PRINT("%s",buffer);
     for (size_t i = 0; i < IDAT_chunks->count; i++)
     {
         memcpy(buffer + i * IDAT_chunks->chunks[i]->length,IDAT_chunks->chunks[i]->data,IDAT_chunks->chunks[i]->length);
-        //strcat(buffer,IDAT_chunks->chunks[i]->data);
-        //WHITE_PRINT("[%llu] = %02x",i, buffer);
-        YELLOW_PRINT("BUFFER LENGTH = %llu",strlen(buffer));
-        print_hex(buffer);
+        YELLOW_PRINT("BUFFER LENGTH = %d",IDAT_chunks->chunks[i]->length);
     }
 }
 
@@ -272,17 +258,22 @@ unsigned char ximer_paeth_predictor(unsigned char a, unsigned char b, unsigned c
 
 unsigned char ximer_recon_a(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
-    return pixels_data[r * stride + c - bytesPerPixel] ? c >= bytesPerPixel : 0;
+    if(c >= bytesPerPixel)
+    {
+        return pixels_data[r * stride + c - bytesPerPixel];
+    }
+
+    return 0;
 }
 
 unsigned char ximer_recon_b(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
-    return pixels_data[(r-1) * stride + c] ? r > 0 : 0;
+    return r > 0 ? pixels_data[(r-1) * stride + c] : 0;
 }
 
 unsigned char ximer_recon_c(unsigned char* pixels_data,const int stride, const int bytesPerPixel, unsigned char r, unsigned char c)
 {
-    return pixels_data[(r-1) * stride + c - bytesPerPixel] ? r > 0 && c >= bytesPerPixel : 0;
+    return r > 0 && c >= bytesPerPixel ? pixels_data[(r-1) * stride + c - bytesPerPixel] : 0;
 }
 
 unsigned char* ximer_reconstruct_pixels_data(const int bytesPerPixel, const ximer_IHDR_chunk* IHDR_chunk, unsigned char* IDAT_data)
@@ -300,6 +291,7 @@ unsigned char* ximer_reconstruct_pixels_data(const int bytesPerPixel, const xime
         for (size_t c = 0; c < stride; c++) //for each byte in scanline
         {
             unsigned char filt_x = IDAT_data[i];
+            unsigned char ftmp_recon;
             i++;
             unsigned char recon_x;
 
@@ -310,26 +302,29 @@ unsigned char* ximer_reconstruct_pixels_data(const int bytesPerPixel, const xime
                 //RED_PRINT("None filter type: %02x - %02x", filter_type, recon_x);
                 break;
             case 1:// Sub
-                recon_x = filt_x + ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c);
+                ftmp_recon = ximer_recon_a(pixels_data,stride,bytesPerPixel,r, c);
                 //RED_PRINT("Sub filter type: %02x - %02x", filter_type, recon_x);
                 break;
             case 2:// Up
-                recon_x = filt_x + ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c);
+                ftmp_recon = ximer_recon_b(pixels_data,stride,bytesPerPixel,r,c);
                 //RED_PRINT("Up filter type: %02x - %02x", filter_type, recon_x);
                 break;
             case 3:// Average
-                recon_x = filt_x + (ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c) + ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c)); // 2
+                ftmp_recon = ximer_recon_a(pixels_data,stride,bytesPerPixel,r, c) + ximer_recon_b(pixels_data,stride,bytesPerPixel,r,c); // 2
                 //RED_PRINT("Average filter type: %02x - %02x", filter_type, recon_x);
                 break;
             case 4:// Paeth
-                recon_x = filt_x + ximer_paeth_predictor(ximer_recon_a(IDAT_data,stride,bytesPerPixel,r, c), ximer_recon_b(IDAT_data,stride,bytesPerPixel,r,c), ximer_recon_c(IDAT_data,stride,bytesPerPixel,r,c));
+                ftmp_recon = ximer_paeth_predictor(ximer_recon_a(pixels_data,stride,bytesPerPixel,r, c), ximer_recon_b(pixels_data,stride,bytesPerPixel,r,c), ximer_recon_c(pixels_data,stride,bytesPerPixel,r,c));
                 //RED_PRINT("Paeth filter type: %02x - %02x", filter_type, recon_x);
                 break;
             default:
-                //RED_PRINT("unknown filter type: %02x", filter_type);
+                RED_PRINT("unknown filter type: %02x", filter_type);
+                exit(-1);
                 continue;
             }
-            pixels_data[r+c] = recon_x;// truncation to byte
+
+            recon_x = filt_x + ftmp_recon;
+            pixels_data[r * stride + c] = recon_x;
         }
     }
 
@@ -365,7 +360,7 @@ int main(int argc, char const* argv[])
     unsigned char* IDAT_chunks_data_uncompressed = (unsigned char*)malloc(dest_length);
 
     int result = uncompress2((Bytef *)IDAT_chunks_data_uncompressed,(uLongf *)&dest_length,(Bytef *)IDAT_chunks_data,(uLong *)&source_length);
-
+    
     // END /////////////////////
 
     unsigned char* pixels_data = ximer_reconstruct_pixels_data(bytesPerPixel,IHDR_chunk,IDAT_chunks_data_uncompressed);
@@ -404,7 +399,7 @@ int main(int argc, char const* argv[])
         return -1;
     }
 
-    if(SDL_UpdateTexture(texture,NULL,pixels_data,IHDR_chunk->width * bytesPerPixel))
+    if(SDL_UpdateTexture(texture,NULL,pixels_data,IHDR_chunk->width  * bytesPerPixel))
     {
         RED_PRINT("Error creating texture!");
         return -1;
@@ -412,6 +407,14 @@ int main(int argc, char const* argv[])
 
     const int new_pos_x = window_width /2 - IHDR_chunk->width*8 /2;
     const int new_pos_y = window_height /2 - IHDR_chunk->height*8 /2;
+
+    SDL_Rect rect;
+    rect.x = new_pos_x;
+    rect.y = new_pos_y;
+    rect.w = IHDR_chunk->width * 8;
+    rect.h = IHDR_chunk->height * 8;
+
+    RED_PRINT("Rect width = %d, height = %d",rect.w, rect.h);
     
     while (1) {
         SDL_SetRenderDrawColor(renderer, 15, 15, 15, 15);
@@ -421,11 +424,8 @@ int main(int argc, char const* argv[])
         if (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) break;
         }
-
-        SDL_Rect drect = {new_pos_x,new_pos_y,IHDR_chunk->width*8,IHDR_chunk->height*8};
         
-        SDL_RenderCopy(renderer,texture,NULL,&drect);
-
+        SDL_RenderCopy(renderer,texture,NULL,&rect);
         SDL_RenderPresent(renderer);
     }
 
