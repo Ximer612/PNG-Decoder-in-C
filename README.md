@@ -6,6 +6,6 @@
    I've done this to challenge my self into translating other language script into another and get in touch with C again after some time.
    The most challenging part was understanding how to translate the zlib python functions to C ones and convert zlib data into SDL2 a texture.
    
-![Image](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/basn6a08.png)
-![Image](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/qr_code.png)
-![Image](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/qr_code.png)
+![Image1](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/qr_code.png)
+![Image2](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/basn6a08.png)
+![Image3](https://github.com/Ximer612/PNG-Decoder-in-C/blob/main/resources/chart.png)
