@@ -28,6 +28,9 @@
         "list": "c",
         "random": "c",
         "utility": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "pngdecode.h": "c",
+        "iostream": "c",
+        "ximer_pngdecode.h": "c"
     }
 }

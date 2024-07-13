@@ -2,6 +2,8 @@
 #define XIMER_PNGDECODE
 
 #define PNG_SIGNATURE_LENGTH 8
+#define CHUNKS_ARRAY_LENGTH 16
+#define BYTES_PER_PIXEL 4
 
 typedef struct ximer_png_chunk
 {
@@ -33,4 +35,6 @@ typedef struct ximer_IDAT_chunks
     size_t count;
 } ximer_IDAT_chunks;
 
-#endif
+unsigned char* ximer_get_pixels_data_from_png(const char* file_path, int* image_width, int* image_height);
+
+#endif // XIMER_PNGDECODE
